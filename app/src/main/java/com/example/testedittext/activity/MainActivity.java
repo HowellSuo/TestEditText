@@ -13,16 +13,26 @@ import android.widget.ListView;
 import com.example.testedittext.R;
 import com.example.testedittext.adapter.SearchAdapter;
 import com.example.testedittext.model.SearchCityResults;
+import com.example.testedittext.service.CityService;
 import com.example.testedittext.utils.HttpCallBackListener;
 import com.example.testedittext.utils.HttpUtils;
 import com.google.gson.Gson;
 
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
 
+import okhttp3.ResponseBody;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.Retrofit;
+
 public class MainActivity extends AppCompatActivity {
+    private static final String BASEURL = "https://api.thinkpage.cn/v3/";
+    private static final String APIKEY = "uuculwcinhp0hpxq";
     private static final String TAG = "TAG";
     private static final int LEVEL_ALLCITY = 0;
     private static final int LEVEL_FOUNDCITY = 1;
@@ -33,6 +43,8 @@ public class MainActivity extends AppCompatActivity {
     private int currentLevel;
     private SearchAdapter adapter;
     private List<String> cityFoundLists;
+    private Retrofit retrofit;
+    private Gson gson;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,6 +55,10 @@ public class MainActivity extends AppCompatActivity {
         lv_cityFound = (ListView) findViewById(R.id.show_Cityfound);
         et_CityKey = (EditText) findViewById(R.id.et_cityKey);
         img_delete = (ImageView) findViewById(R.id.img_empty);
+        retrofit = new Retrofit.Builder()
+                .baseUrl(BASEURL)
+                .build();
+        gson = new Gson();
 
 
         et_CityKey.addTextChangedListener(new TextWatcher() {
@@ -81,10 +97,58 @@ public class MainActivity extends AppCompatActivity {
         }
 
         String url_search = "https://api.thinkpage.cn/v3/location/search.json?key=uuculwcinhp0hpxq&q=" + key_city;
-        parseCity(url_search);
-        adapter=new SearchAdapter(this);
+        parseCityWithRetro(key_city);
+        //parseCity(url_search);
+        adapter = new SearchAdapter(this);
         lv_cityFound.setAdapter(adapter);
         adapter.notifyDataSetChanged();
+    }
+
+    /**
+     * 利用Retrofit网络框架
+     *
+     * @param key_city
+     */
+    private void parseCityWithRetro(String key_city) {
+        //创建对应的接口类
+        CityService cityService = retrofit.create(CityService.class);
+        //传入对应的参数
+        Call<ResponseBody> call = cityService.getCitySelected(APIKEY, key_city);
+        //异步操作
+
+
+        call.enqueue(new Callback<ResponseBody>() {
+            @Override
+            public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+                try {
+                    //拿到返回json数据对象
+                    SearchCityResults searchResults = gson.fromJson(response.body().string(), SearchCityResults.class);
+                    List<SearchCityResults.SearchCityBean> results = searchResults.getResults();
+
+                    final List<String> lists = new ArrayList<String>();
+                    for (int i = 0; i < results.size(); i++) {
+                        SearchCityResults.SearchCityBean searchCityBean = results.get(i);
+                        String cityID = searchCityBean.getId();
+                        String S_cityName = searchCityBean.getName();
+                        String S_CityPath = searchCityBean.getPath();
+
+                        lists.add(S_cityName);
+                        Log.e(TAG, "onFinish: " + lists.toString());
+                    }
+
+                    adapter.setData(lists);
+
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            @Override
+            public void onFailure(Call<ResponseBody> call, Throwable t) {
+
+            }
+        });
+
     }
 
     private void showView() {
@@ -111,7 +175,7 @@ public class MainActivity extends AppCompatActivity {
                     String S_CityPath = searchCityBean.getPath();
 
                     lists.add(S_cityName);
-                    Log.e(TAG, "onFinish: "+lists.toString() );
+                    Log.e(TAG, "onFinish: " + lists.toString());
 
                     runOnUiThread(new Runnable() {
                         @Override
